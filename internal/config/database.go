@@ -1,9 +1,10 @@
 package config
 
 import (
-	"guide-me/internal/models"
 	"log"
 	"os"
+
+	"guide-me/internal/models"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -12,27 +13,23 @@ import (
 var DB *gorm.DB
 
 func ConnectDB() {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		log.Fatal("DATABASE_URL is not set")
+	}
 
-	dbURL := os.Getenv("DATABASE_URL")
-
-	db, err := gorm.Open(postgres.Open(dbURL), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("Database connection failed:", err)
 	}
 
 	DB = db
-	log.Println("Connected to Supabase PostgreSQL 🚀")
+	log.Println("Database connected successfully")
 }
 
 func RunMigrations() {
-
-	err := DB.AutoMigrate(
+	DB.AutoMigrate(
 		&models.User{},
 	)
-
-	if err != nil {
-		log.Fatal("Migration failed:", err)
-	}
-
-	log.Println("Migrations applied successfully ✅")
+	log.Println("Migrations completed")
 }
