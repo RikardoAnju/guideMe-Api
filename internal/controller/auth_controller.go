@@ -23,7 +23,7 @@ func Register(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Register successful",
+		"message": "Registration successful, please check your email to verify your account",
 		"user":    user,
 	})
 }
@@ -46,6 +46,39 @@ func Login(c *gin.Context) {
 		"token":   token,
 		"user":    user,
 	})
+}
+
+func VerifyEmail(c *gin.Context) {
+	token := c.Query("token")
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "token is required"})
+		return
+	}
+
+	if err := service.VerifyEmail(token); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Email verified successfully"})
+}
+
+func ResendVerificationEmail(c *gin.Context) {
+	var body struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	if err := service.ResendVerificationEmail(body.Email); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Verification email sent"})
 }
 
 func GetProfile(c *gin.Context) {
@@ -110,13 +143,10 @@ func ChangePassword(c *gin.Context) {
 		return
 	}
 
-	err := service.ChangePassword(req)
-	if err != nil {
+	if err := service.ChangePassword(req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Password changed successfully",
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully"})
 }
