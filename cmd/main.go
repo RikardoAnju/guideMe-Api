@@ -11,13 +11,16 @@ import (
 )
 
 func main() {
-	// Load .env file (hanya untuk lokal, di Leapcell env sudah diset manual)
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using system environment variables")
 	}
 
 	config.ConnectDB()
-	config.RunMigrations()
+
+	// Jalankan migrasi di background agar tidak blocking
+	go func() {
+		config.RunMigrations()
+	}()
 
 	r := gin.Default()
 
