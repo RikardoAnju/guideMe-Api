@@ -67,7 +67,6 @@ func ResendVerificationEmail(c *gin.Context) {
 	var body struct {
 		Email string `json:"email" binding:"required,email"`
 	}
-
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
@@ -83,7 +82,6 @@ func ResendVerificationEmail(c *gin.Context) {
 
 func GetProfile(c *gin.Context) {
 	userID, _ := c.Get("userID")
-
 	user, err := service.GetProfile(userID.(string))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
@@ -117,6 +115,7 @@ func UpdateProfile(c *gin.Context) {
 	})
 }
 
+// ResetPassword — terima email, kirim OTP, return otp_token ke FE
 func ResetPassword(c *gin.Context) {
 	var req models.ResetPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -124,18 +123,39 @@ func ResetPassword(c *gin.Context) {
 		return
 	}
 
-	token, err := service.ResetPassword(req)
+	otpToken, err := service.ResetPassword(req)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Reset token generated",
-		"token":   token,
+		"message":   "OTP has been sent to your email",
+		"otp_token": otpToken, // FE simpan ini di state/localStorage
 	})
 }
 
+// VerifyOTP — terima otp + otp_token, return reset_token jika valid
+func VerifyOTP(c *gin.Context) {
+	var req models.VerifyOTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	resetToken, err := service.VerifyOTP(req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":     "OTP verified successfully",
+		"reset_token": resetToken, // FE simpan ini untuk step ganti password
+	})
+}
+
+// ChangePassword — terima reset_token + new_password, update password
 func ChangePassword(c *gin.Context) {
 	var req models.ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

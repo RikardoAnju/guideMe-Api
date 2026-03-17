@@ -29,20 +29,20 @@ func Register(req models.RegisterRequest) (*models.User, error) {
 	expiry := time.Now().Add(24 * time.Hour)
 
 	user := &models.User{
-		ID:                     uuid.New().String(),
-		FirstName:              req.FirstName,
-		LastName:               req.LastName,
-		Username:               req.Username,
-		Email:                  req.Email,
-		Password:               string(hashed),
-		PhoneNumber:            req.PhoneNumber,
-		Gender:                 req.Gender,
-		Address:                req.Address,
-		Role:                   "user",
-		EmailVerified:          false,
-		EmailVerificationToken: verificationToken,
+		ID:                      uuid.New().String(),
+		FirstName:               req.FirstName,
+		LastName:                req.LastName,
+		Username:                req.Username,
+		Email:                   req.Email,
+		Password:                string(hashed),
+		PhoneNumber:             req.PhoneNumber,
+		Gender:                  req.Gender,
+		Address:                 req.Address,
+		Role:                    "user",
+		EmailVerified:           false,
+		EmailVerificationToken:  verificationToken,
 		EmailVerificationExpiry: &expiry,
-		CreatedAt:              time.Now(),
+		CreatedAt:               time.Now(),
 	}
 
 	result := config.DB.Create(user)
@@ -52,7 +52,9 @@ func Register(req models.RegisterRequest) (*models.User, error) {
 
 	emailService := NewEmailService()
 	if err := emailService.SendVerificationEmail(user.Email, user.FirstName, verificationToken); err != nil {
-		return nil, errors.New("user registered but failed to send verification email")
+		// Rollback user jika email gagal terkirim
+		config.DB.Delete(user)
+		return nil, errors.New("failed to send verification email, please try again")
 	}
 
 	return user, nil
@@ -69,8 +71,7 @@ func Login(req models.LoginRequest) (string, *models.User, error) {
 		return "", nil, errors.New("email not verified, please check your inbox")
 	}
 
-	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
-	if err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 		return "", nil, errors.New("email or password incorrect")
 	}
 
@@ -83,7 +84,7 @@ func Login(req models.LoginRequest) (string, *models.User, error) {
 
 	tokenString, err := token.SignedString(config.JWTSecret)
 	if err != nil {
-		return "", nil, err
+		return "", nil, errors.New("failed to generate token")
 	}
 
 	return tokenString, &user, nil
@@ -100,16 +101,17 @@ func VerifyEmail(token string) error {
 		return errors.New("email already verified")
 	}
 
-	// Cek expiry
 	if user.EmailVerificationExpiry != nil && time.Now().After(*user.EmailVerificationExpiry) {
 		return errors.New("verification token has expired, please request a new one")
 	}
 
-	config.DB.Model(&user).Updates(map[string]interface{}{
-		"email_verified":           true,
+	if err := config.DB.Model(&user).Updates(map[string]interface{}{
+		"email_verified":          true,
 		"email_verification_token": "",
 		"email_verification_expiry": nil,
-	})
+	}).Error; err != nil {
+		return errors.New("failed to verify email")
+	}
 
 	return nil
 }
@@ -137,7 +139,7 @@ func ResendVerificationEmail(email string) error {
 
 	emailService := NewEmailService()
 	if err := emailService.SendVerificationEmail(user.Email, user.FirstName, newToken); err != nil {
-		 fmt.Println("EMAIL ERROR:", err) 
+		fmt.Println("EMAIL ERROR:", err)
 		return errors.New("failed to send verification email")
 	}
 
@@ -154,20 +156,21 @@ func GetProfile(userID string) (*models.User, error) {
 }
 
 func UpdateProfile(userID string, req models.UpdateProfileRequest) (*models.User, error) {
-	result := config.DB.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
+	if err := config.DB.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
 		"first_name":   req.FirstName,
 		"last_name":    req.LastName,
 		"username":     req.Username,
 		"phone_number": req.PhoneNumber,
 		"gender":       req.Gender,
 		"address":      req.Address,
-	})
-	if result.Error != nil {
-		return nil, result.Error
+	}).Error; err != nil {
+		return nil, errors.New("failed to update profile")
 	}
+
 	return GetProfile(userID)
 }
 
+// ResetPassword — cek email, generate OTP, kirim ke email, return otp_token ke FE
 func ResetPassword(req models.ResetPasswordRequest) (string, error) {
 	var user models.User
 	result := config.DB.Where("email = ?", req.Email).First(&user)
@@ -175,35 +178,59 @@ func ResetPassword(req models.ResetPasswordRequest) (string, error) {
 		return "", errors.New("email not found")
 	}
 
-	token := fmt.Sprintf("%d", time.Now().UnixNano())
-	config.DB.Model(&user).Updates(map[string]interface{}{
-		"temporary_reset_token": token,
-		"password_reset":        true,
-	})
-
-	return token, nil
-}
-
-func ChangePassword(req models.ChangePasswordRequest) error {
-	var user models.User
-	result := config.DB.Where("temporary_reset_token = ? AND password_reset = ?", req.Token, true).First(&user)
-	if result.Error != nil {
-		return errors.New("invalid or expired token")
+	// Generate OTP + JWT token yang menyimpan OTP (expire 10 menit)
+	otp, otpToken, err := GenerateOTPToken(user.Email)
+	if err != nil {
+		return "", errors.New("failed to generate OTP")
 	}
 
-	hashed, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	// Kirim OTP via email
+	emailService := NewEmailService()
+	if err := emailService.SendOTPEmail(user.Email, user.FirstName, otp); err != nil {
+		fmt.Println("OTP EMAIL ERROR:", err)
+		return "", errors.New("failed to send OTP email")
+	}
+
+	// otp_token dikirim ke FE untuk disimpan sementara
+	return otpToken, nil
+}
+
+// VerifyOTP — validasi OTP input user vs OTP di dalam JWT, return reset_token
+func VerifyOTP(req models.VerifyOTPRequest) (string, error) {
+	resetToken, err := VerifyOTPToken(req.OTP, req.OTPToken)
+	if err != nil {
+		return "", err
+	}
+	return resetToken, nil
+}
+
+// ChangePassword — parse reset_token (stateless), update password di DB
+func ChangePassword(req models.ChangePasswordRequest) error {
+	// Parse reset token untuk dapat email tanpa query DB
+	email, err := ParseResetToken(req.ResetToken)
 	if err != nil {
 		return err
 	}
 
-	now := time.Now()
-	config.DB.Model(&user).Updates(map[string]interface{}{
-		"password":               string(hashed),
-		"temporary_reset_token":  "",
-		"password_reset":         false,
-		"password_reset_success": true,
-		"last_password_update":   now,
-	})
+	hashed, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return errors.New("failed to process password")
+	}
+
+	result := config.DB.Model(&models.User{}).
+		Where("email = ?", email).
+		Updates(map[string]interface{}{
+			"password":             string(hashed),
+			"last_password_update": time.Now(),
+		})
+
+	if result.Error != nil {
+		return errors.New("failed to update password")
+	}
+
+	if result.RowsAffected == 0 {
+		return errors.New("user not found")
+	}
 
 	return nil
 }
