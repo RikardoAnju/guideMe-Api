@@ -1,76 +1,63 @@
 package service
 
 import (
-    "context"
-    "fmt"
-    "os"
+	"context"
+	"fmt"
+	"os"
+	"time"
 
-    "github.com/mailersend/mailersend-go"
+	"github.com/mailersend/mailersend-go"
 )
 
-type EmailService struct {
-    client *mailersend.Mailersend
-    from   mailersend.From
-    appURL string
+type EmailService interface {
+	SendVerificationEmail(toEmail, toName, token string) error
 }
 
-func NewEmailService() *EmailService {
-    ms := mailersend.NewMailersend(os.Getenv("MAILERSEND_API_KEY"))
-
-    return &EmailService{
-        client: ms,
-        from: mailersend.From{
-            Name:  os.Getenv("MAILERSEND_FROM_NAME"),
-            Email: os.Getenv("MAILERSEND_FROM_EMAIL"),
-        },
-        appURL: os.Getenv("APP_URL"),
-    }
+type mailerSendService struct {
+	client    *mailersend.Mailersend
+	fromEmail string
+	fromName  string
+	appURL    string
 }
 
-func (e *EmailService) SendVerificationEmail(toEmail, toName, token string) error {
-    ctx := context.Background()
+func NewEmailService() EmailService {
+	return &mailerSendService{
+		client:    mailersend.NewMailersend(os.Getenv("MAILERSEND_API_KEY")),
+		fromEmail: os.Getenv("MAILERSEND_FROM_EMAIL"),
+		fromName:  os.Getenv("MAILERSEND_FROM_NAME"),
+		appURL:    os.Getenv("APP_URL"),
+	}
+}
 
-    verificationLink := fmt.Sprintf("%s/api/auth/verify-email?token=%s", e.appURL, token)
+func (s *mailerSendService) SendVerificationEmail(toEmail, toName, token string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
 
-    recipients := []mailersend.Recipient{
-        {
-            Name:  toName,
-            Email: toEmail,
-        },
-    }
-    personalization := []mailersend.Personalization{
-        {
-            Email: toEmail,
-            Data: map[string]interface{}{
-                "name":              toName,
-                "verification_link": verificationLink,
-            },
-        },
-    }
+	verificationLink := fmt.Sprintf("%s/api/auth/verify-email?token=%s", s.appURL, token)
 
-    message := e.client.Email.NewMessage()
-    message.SetFrom(e.from)
-    message.SetRecipients(recipients)
-    message.SetSubject("Verify Your Email Address")
-    message.SetPersonalization(personalization)
+	from := mailersend.From{
+		Name:  s.fromName,
+		Email: s.fromEmail,
+	}
 
-    htmlContent := fmt.Sprintf(`
-        <h2>Hello, %s!</h2>
-        <p>Please verify your email by clicking the button below:</p>
-        <a href="%s" style="
-            background-color:#4F46E5;
-            color:white;
-            padding:12px 24px;
-            text-decoration:none;
-            border-radius:6px;
-            display:inline-block;
-        ">Verify Email</a>
-        <p>Or copy this link: %s</p>
-        <p>This link expires in 24 hours.</p>
-    `, toName, verificationLink, verificationLink)
+	recipients := []mailersend.Recipient{
+		{Name: toName, Email: toEmail},
+	}
 
-    message.SetHTML(htmlContent)
+	htmlContent := fmt.Sprintf(`
+		<div style="font-family:sans-serif;max-width:600px;margin:auto;border:1px solid #eee;padding:20px;">
+			<h2 style="color: #333;">Verify Your Email</h2>
+			<p>Hi %s, please click the button below to verify your account:</p>
+			<a href="%s" style="background:#4F46E5;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Verify Now</a>
+			<p style="margin-top:20px;font-size:12px;color:#888;">This link expires in 24 hours.</p>
+		</div>`, toName, verificationLink)
 
-    _, err := e.client.Email.Send(ctx, message)
-    return err
+	message := s.client.Email.NewMessage()
+	message.SetFrom(from)
+	message.SetRecipients(recipients)
+	message.SetSubject("Verify Your Email Address")
+	message.SetHTML(htmlContent)
+
+	_, err := s.client.Email.Send(ctx, message)
+	return err
 }
