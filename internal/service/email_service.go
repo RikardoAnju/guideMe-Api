@@ -33,7 +33,7 @@ func (s *mailerSendService) SendVerificationEmail(toEmail, toName, token string)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	verificationLink := fmt.Sprintf("%s/api/auth/verify-email?token=%s", s.appURL, token)
+	verificationLink := fmt.Sprintf("%s/api/v1/auth/verify-email?token=%s", s.appURL, token)
 
 	// Debug log
 	fmt.Println("=== SENDING EMAIL ===")
