@@ -35,22 +35,28 @@ func (s *mailerSendService) SendVerificationEmail(toEmail, toName, token string)
 
 	verificationLink := fmt.Sprintf("%s/api/auth/verify-email?token=%s", s.appURL, token)
 
+	// Debug log
+	fmt.Println("=== SENDING EMAIL ===")
+	fmt.Println("To:", toEmail)
+	fmt.Println("From:", s.fromEmail)
+	fmt.Println("APP_URL:", s.appURL)
+	fmt.Println("Verification Link:", verificationLink)
+	fmt.Println("API Key:", s.client)
+
 	from := mailersend.From{
 		Name:  s.fromName,
 		Email: s.fromEmail,
 	}
-
 	recipients := []mailersend.Recipient{
 		{Name: toName, Email: toEmail},
 	}
-
 	htmlContent := fmt.Sprintf(`
-		<div style="font-family:sans-serif;max-width:600px;margin:auto;border:1px solid #eee;padding:20px;">
-			<h2 style="color: #333;">Verify Your Email</h2>
-			<p>Hi %s, please click the button below to verify your account:</p>
-			<a href="%s" style="background:#4F46E5;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Verify Now</a>
-			<p style="margin-top:20px;font-size:12px;color:#888;">This link expires in 24 hours.</p>
-		</div>`, toName, verificationLink)
+        <div style="font-family:sans-serif;max-width:600px;margin:auto;border:1px solid #eee;padding:20px;">
+            <h2 style="color: #333;">Verify Your Email</h2>
+            <p>Hi %s, please click the button below to verify your account:</p>
+            <a href="%s" style="background:#4F46E5;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Verify Now</a>
+            <p style="margin-top:20px;font-size:12px;color:#888;">This link expires in 24 hours.</p>
+        </div>`, toName, verificationLink)
 
 	message := s.client.Email.NewMessage()
 	message.SetFrom(from)
@@ -58,6 +64,15 @@ func (s *mailerSendService) SendVerificationEmail(toEmail, toName, token string)
 	message.SetSubject("Verify Your Email Address")
 	message.SetHTML(htmlContent)
 
-	_, err := s.client.Email.Send(ctx, message)
-	return err
+	resp, err := s.client.Email.Send(ctx, message)
+	if err != nil {
+		fmt.Println("MAILERSEND ERROR:", err)
+		fmt.Printf("MAILERSEND RESPONSE: %+v\n", resp)
+		return err
+	}
+
+	fmt.Println("EMAIL SENT SUCCESS")
+	fmt.Printf("RESPONSE: %+v\n", resp)
+
+	return nil
 }

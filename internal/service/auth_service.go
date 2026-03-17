@@ -137,6 +137,7 @@ func ResendVerificationEmail(email string) error {
 
 	emailService := NewEmailService()
 	if err := emailService.SendVerificationEmail(user.Email, user.FirstName, newToken); err != nil {
+		 fmt.Println("EMAIL ERROR:", err) 
 		return errors.New("failed to send verification email")
 	}
 
