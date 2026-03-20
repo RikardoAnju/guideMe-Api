@@ -14,5 +14,6 @@ func SetupRoutes(r *gin.Engine) {
 	{
 		SetupAuthRoutes(v1)
 		SetupUserRoutes(v1)
+	    SetupAdminRoutes(v1)  
 	}
 }
