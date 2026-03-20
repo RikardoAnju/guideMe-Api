@@ -7,7 +7,6 @@ import (
 
 	"guide-me/internal/config"
 	"guide-me/internal/models"
-
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -58,6 +57,45 @@ func Register(req models.RegisterRequest) (*models.User, error) {
 	}
 
 	return user, nil
+}
+
+func Logout(tokenString string) error {
+	// Parse token untuk ambil expiry
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return config.JWTSecret, nil
+	})
+	if err != nil {
+		return errors.New("invalid token")
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return errors.New("invalid token claims")
+	}
+
+	// Ambil waktu expired dari claims
+	exp := time.Unix(int64(claims["exp"].(float64)), 0)
+
+	// Simpan token ke blacklist
+	blacklist := models.TokenBlacklist{
+		Token:     tokenString,
+		ExpiredAt: exp,
+	}
+
+	if err := config.DB.Create(&blacklist).Error; err != nil {
+		return errors.New("failed to logout")
+	}
+
+	return nil
+}
+
+// Cek apakah token sudah di-blacklist
+func IsTokenBlacklisted(tokenString string) bool {
+	var count int64
+	config.DB.Model(&models.TokenBlacklist{}).
+		Where("token = ? AND expired_at > ?", tokenString, time.Now()).
+		Count(&count)
+	return count > 0
 }
 
 func Login(req models.LoginRequest) (string, *models.User, error) {

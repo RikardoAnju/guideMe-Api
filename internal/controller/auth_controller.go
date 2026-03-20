@@ -5,7 +5,7 @@ import (
 
 	"guide-me/internal/models"
 	"guide-me/internal/service"
-
+	 "strings" 
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,6 +26,24 @@ func Register(c *gin.Context) {
 		"message": "Registration successful, please check your email to verify your account",
 		"user":    user,
 	})
+}
+
+func Logout(c *gin.Context) {
+	// Ambil token dari header
+	authHeader := c.GetHeader("Authorization")
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid token"})
+		return
+	}
+
+	tokenString := parts[1]
+	if err := service.Logout(tokenString); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Logout successful"})
 }
 
 func Login(c *gin.Context) {

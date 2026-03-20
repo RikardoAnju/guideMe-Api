@@ -30,6 +30,7 @@ func ConnectDB() {
 func RunMigrations() {
 	DB.AutoMigrate(
 		&models.User{},
+		&models.TokenBlacklist{},
 	)
 	log.Println("Migrations completed")
 }

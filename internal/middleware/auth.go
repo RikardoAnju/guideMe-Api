@@ -8,6 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"guide-me/internal/config"
+	"guide-me/internal/service"
 )
 
 func AuthMiddleware() gin.HandlerFunc {
@@ -34,9 +35,15 @@ func AuthMiddleware() gin.HandlerFunc {
 			}
 			return config.JWTSecret, nil
 		})
-
 		if err != nil || !token.Valid {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid or expired token"})
+			c.Abort()
+			return
+		}
+
+		// ← Cek blacklist
+		if service.IsTokenBlacklisted(tokenString) {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "Token has been invalidated, please login again"})
 			c.Abort()
 			return
 		}
@@ -50,7 +57,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		c.Set("userID", claims["user_id"])
 		c.Set("email", claims["email"])
-		c.Set("role", claims["role"]) 
+		c.Set("role", claims["role"])
 		c.Next()
 	}
 }
