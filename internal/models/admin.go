@@ -5,14 +5,15 @@ import "time"
 type GetUsersQuery struct {
 	Page   int    `form:"page"`
 	Limit  int    `form:"limit"`
-	Search string `form:"search"` 
-	Role   string `form:"role"`   
+	Search string `form:"search"`
+	Role   string `form:"role"`
 }
 
 type UserListItem struct {
 	ID            string    `json:"id"`
 	FirstName     string    `json:"firstName"`
 	LastName      string    `json:"lastName"`
+	IsActive      bool      `json:"isActive"`
 	Username      string    `json:"username"`
 	Email         string    `json:"email"`
 	PhoneNumber   string    `json:"phoneNumber"`

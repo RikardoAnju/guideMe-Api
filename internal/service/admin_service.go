@@ -9,6 +9,30 @@ import (
 	"guide-me/internal/models"
 )
 
+func ToggleUserActive(id string, callerID string) (*models.UserListItem, error) {
+	if id == callerID {
+		return nil, errors.New("tidak bisa menonaktifkan akun sendiri")
+	}
+
+	var u models.User
+	if err := config.DB.Where("id = ?", id).First(&u).Error; err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	if u.Role == "admin" {
+		return nil, errors.New("tidak bisa menonaktifkan sesama admin")
+	}
+
+	newStatus := !u.IsActive
+	if err := config.DB.Model(&u).Update("is_active", newStatus).Error; err != nil {
+		return nil, err
+	}
+
+	u.IsActive = newStatus
+	item := toUserListItem(u)
+	return &item, nil
+}
+
 func GetAllUsers(query models.GetUsersQuery) (*models.PaginatedUsersResponse, error) {
 	if query.Page <= 0 {
 		query.Page = 1
@@ -20,7 +44,6 @@ func GetAllUsers(query models.GetUsersQuery) (*models.PaginatedUsersResponse, er
 
 	db := config.DB.Model(&models.User{})
 
-	// Filter search
 	if query.Search != "" {
 		s := "%" + strings.ToLower(query.Search) + "%"
 		db = db.Where(
@@ -29,18 +52,15 @@ func GetAllUsers(query models.GetUsersQuery) (*models.PaginatedUsersResponse, er
 		)
 	}
 
-	// Filter role
 	if query.Role != "" {
 		db = db.Where("role = ?", query.Role)
 	}
 
-	// Hitung total
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
 		return nil, err
 	}
 
-	// Ambil data
 	var users []models.User
 	if err := db.
 		Offset(offset).
@@ -50,20 +70,9 @@ func GetAllUsers(query models.GetUsersQuery) (*models.PaginatedUsersResponse, er
 		return nil, err
 	}
 
-	// Map ke response
 	items := make([]models.UserListItem, len(users))
 	for i, u := range users {
-		items[i] = models.UserListItem{
-			ID:            u.ID,
-			FirstName:     u.FirstName,
-			LastName:      u.LastName,
-			Username:      u.Username,
-			Email:         u.Email,
-			PhoneNumber:   u.PhoneNumber,
-			Role:          u.Role,
-			EmailVerified: u.EmailVerified,
-			CreatedAt:     u.CreatedAt,
-		}
+		items[i] = toUserListItem(u) // ← pakai toUserListItem agar konsisten
 	}
 
 	return &models.PaginatedUsersResponse{
@@ -77,13 +86,18 @@ func GetAllUsers(query models.GetUsersQuery) (*models.PaginatedUsersResponse, er
 
 func GetUserByID(id string) (*models.UserListItem, error) {
 	var u models.User
-
-	// ✅ Fix: pakai config.DB + Where + First
 	if err := config.DB.Where("id = ?", id).First(&u).Error; err != nil {
 		return nil, errors.New("user not found")
 	}
 
-	return &models.UserListItem{
+	item := toUserListItem(u)
+	return &item, nil
+}
+
+// ── Helper ────────────────────────────────────────────────────────────────────
+
+func toUserListItem(u models.User) models.UserListItem {
+	return models.UserListItem{
 		ID:            u.ID,
 		FirstName:     u.FirstName,
 		LastName:      u.LastName,
@@ -93,5 +107,6 @@ func GetUserByID(id string) (*models.UserListItem, error) {
 		Role:          u.Role,
 		EmailVerified: u.EmailVerified,
 		CreatedAt:     u.CreatedAt,
-	}, nil
+		IsActive:      u.IsActive, // ← tambahan
+	}
 }

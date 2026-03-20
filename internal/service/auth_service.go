@@ -71,6 +71,11 @@ func Login(req models.LoginRequest) (string, *models.User, error) {
 		return "", nil, errors.New("email not verified, please check your inbox")
 	}
 
+	// ← Tambahkan pengecekan is_active
+	if !user.IsActive {
+		return "", nil, errors.New("akun Anda telah dinonaktifkan, hubungi admin")
+	}
+
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 		return "", nil, errors.New("email or password incorrect")
 	}
@@ -106,8 +111,8 @@ func VerifyEmail(token string) error {
 	}
 
 	if err := config.DB.Model(&user).Updates(map[string]interface{}{
-		"email_verified":          true,
-		"email_verification_token": "",
+		"email_verified":            true,
+		"email_verification_token":  "",
 		"email_verification_expiry": nil,
 	}).Error; err != nil {
 		return errors.New("failed to verify email")

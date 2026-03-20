@@ -21,4 +21,5 @@ type User struct {
 	TemporaryResetToken     string     `json:"temporaryResetToken" gorm:"column:temporary_reset_token;default:''"`
 	LastPasswordUpdate      *time.Time `json:"lastPasswordUpdate" gorm:"column:last_password_update"`
 	CreatedAt               time.Time  `json:"createdAt" gorm:"column:created_at;autoCreateTime"`
+	IsActive                bool       `json:"isActive" gorm:"column:is_active;default:true"`
 }

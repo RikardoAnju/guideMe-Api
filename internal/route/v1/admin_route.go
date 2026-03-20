@@ -12,5 +12,8 @@ func SetupAdminRoutes(r *gin.RouterGroup) {
 	{
 		admin.GET("/users",      controller.GetAllUsers)
 		admin.GET("/users/:id",  controller.GetUserByID)
+		admin.PATCH("/users/:id/toggle-active", controller.ToggleUserActive)
 	}
+
+
 }
