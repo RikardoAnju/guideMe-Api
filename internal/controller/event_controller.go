@@ -45,6 +45,8 @@ func GetEventByID(c *gin.Context) {
 	})
 }
 
+// internal/controller/event_controller.go
+
 func CreateEvent(c *gin.Context) {
 	var req models.CreateEventRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -55,8 +57,8 @@ func CreateEvent(c *gin.Context) {
 		return
 	}
 
-	// Ambil user ID dari JWT middleware (sesuaikan key-nya dengan middleware kamu)
-	createdBy, exists := c.Get("user_id")
+	// Ganti "user_id" → "userID"
+	createdBy, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
