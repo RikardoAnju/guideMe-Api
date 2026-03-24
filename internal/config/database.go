@@ -32,6 +32,7 @@ func RunMigrations() {
 		&models.User{},
 		&models.TokenBlacklist{},
 		&models.Destinasi{},
+		&models.Event{},
 	)
 	log.Println("Migrations completed")
 }
