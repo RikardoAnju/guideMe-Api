@@ -31,6 +31,7 @@ func RunMigrations() {
 	DB.AutoMigrate(
 		&models.User{},
 		&models.TokenBlacklist{},
+		&models.Destinasi{},
 	)
 	log.Println("Migrations completed")
 }
