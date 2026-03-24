@@ -3,10 +3,10 @@ package controller
 import (
 	"net/http"
 
+	"github.com/gin-gonic/gin"
 	"guide-me/internal/models"
 	"guide-me/internal/service"
-	 "strings" 
-	"github.com/gin-gonic/gin"
+	"strings"
 )
 
 func Register(c *gin.Context) {
