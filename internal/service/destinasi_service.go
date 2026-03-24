@@ -51,7 +51,7 @@ func CreateDestinasi(req models.CreateDestinasiRequest, createdBy string) (*mode
 
 	result := config.DB.Create(destinasi)
 	if result.Error != nil {
-		return nil, errors.New("failed to create destinasi")
+		return nil, result.Error
 	}
 
 	return destinasi, nil
