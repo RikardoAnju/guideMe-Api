@@ -38,6 +38,7 @@ func GetDestinasiByID(c *gin.Context) {
 	})
 }
 
+// internal/controller/destinasi_controller.go
 func CreateDestinasi(c *gin.Context) {
 	var req models.CreateDestinasiRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -45,8 +46,11 @@ func CreateDestinasi(c *gin.Context) {
 		return
 	}
 
-	// Ambil user_id dari context (di-set oleh middleware auth)
-	userID, _ := c.Get("user_id")
+	userID, exists := c.Get("userID") // ← ganti "user_id" jadi "userID"
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 
 	data, err := service.CreateDestinasi(req, userID.(string))
 	if err != nil {
