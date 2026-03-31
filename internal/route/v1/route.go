@@ -17,5 +17,7 @@ func SetupRoutes(r *gin.Engine) {
 		SetupAdminRoutes(v1)
 		SetupDestinasiRoutes(v1)
 		SetupEventRoutes(v1)
+		SetupUploadRoutes(v1)
+
 	}
 }
